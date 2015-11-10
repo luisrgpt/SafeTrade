@@ -39,16 +39,22 @@ function moveFolder {
 
 function safeTrade {
 
-  output_directory="${2}/output"
+  output_directory="${2}"
   current_directory="${output_directory}/directory"
   directory_num=$((${#current_directory} + 2))
   block_name="${output_directory}/block"
   key_name="${output_directory}/key"
   crypt_name="${block_name}.gpg"
-  mkdir ${output_directory} ${current_directory}
+  mkdir -p ${output_directory} ${current_directory}
 
   MD5="\n${3}\n"
-  for file in ${1}; do
+
+  FILES=$(ls -RA ${1} | awk '/:$/&&f{s=$0;f=0}/:$/&&!f{sub(/:$/,"");s=$0;f=1;next}NF&&f{ print s"/"$0 }')
+
+  for file in ${FILES}; do
+    if [[ -d "${file}" ]]; then
+      continue
+    fi
     MD5="${MD5}$(stat -c%s "${file}")\n"
     MD5="${MD5}$(basename "${file}")\n"
     MD5="${MD5}$(md5sum ${file} | cut -d " " -f1)\n"
@@ -96,15 +102,21 @@ function safeTrade {
 
   printf "${MD5}" >> ${key_name}
 
-}
+  mv ${key_name} "${key_name}.txt"
 
+  zip ${key_name}.zip "${key_name}.txt"
+  cat "${HOME}/imagem.jpg" "${key_name}.zip" > ${HOME}/imagemcomchave.jpg
+
+  rm ${block_name} ${crypt_name} "${key_name}.txt"
+
+}
 function unSafeTrade {
 
-  output_directory="${2}/output_reverse"
+  output_directory="${2}"
   dir_name="${1}"
   block_name="${output_directory}/deblock"
   crypt_name="${block_name}.gpg"
-  mkdir ${output_directory}
+  mkdir -p ${output_directory}
 
   decrypt=0
   size=0
@@ -113,39 +125,34 @@ function unSafeTrade {
   skip_size=0
   while read -r file_name; do
     if (( ${verify} )); then
-      echo "Verifying ${new_file}: ${md5} with ${file_name}"
       if [[ ${md5} = ${file_name} ]]; then
         echo "${new_file} was extracted with success"
       else
         echo "Error: ${new_file} corrupted"
         exit 1
       fi
-      size=0
       name=0
       verify=0
     elif (( ${name} )); then
-      echo "Creating ${file_name}"
       new_file="${output_directory}/${file_name}"
       mv "${output_directory}/unamed" ${new_file}
       md5=$(md5sum ${new_file}  | cut -d " " -f1)
       verify=1
     elif (( ${size} )); then
-      echo "Catching ${skip_size} + ${file_name}"
       dd if=${block_name} of="${output_directory}/unamed" bs=1c count=${file_name} skip=${skip_size} status="none";
-      skip_size="$(expr ${skip_size} + ${file_size})"
+      skip_size="$(expr ${skip_size} + ${file_name})"
       name=1
     elif (( ${decrypt} )); then
-      echo "Decrypting with passphrase ${file_name}"
-      gpg --passphrase "${file_name}" -d -o ${block_name} ${crypt_name}
+      gpg -q --passphrase "${file_name}" -d -o ${block_name} ${crypt_name}
       size=1
     elif [[ ${file_name} = "" ]]; then
-      echo "Empty line"
       decrypt=1
     else
-      echo "Catning ${file_name}"
       cat "${dir_name}/${file_name}" >> ${crypt_name}
     fi
   done
+
+  rm ${block_name} ${crypt_name}
 
 }
 
@@ -184,7 +191,13 @@ done
 #fi
 
 if (( ${reverse} )); then
+  ###################
+  # Find Key
+  ###################
   unSafeTrade "${input_files}" "${output_file}"
 else
   safeTrade "${input_files}" "${output_file}" "${passphrase}"
+  ###################
+  # Hide Key
+  ###################
 fi
