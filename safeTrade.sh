@@ -56,7 +56,7 @@ function safeTrade {
       continue
     fi
     MD5="${MD5}$(stat -c%s "${file}")\n"
-    MD5="${MD5}$(basename "${file}")\n"
+    MD5="${MD5}$(echo "${file}" | cut -c 2-${#file})\n"
     MD5="${MD5}$(md5sum ${file} | cut -d " " -f1)\n"
     cat "${file}" >> ${block_name}
   done
@@ -135,7 +135,7 @@ function unSafeTrade {
       verify=0
     elif (( ${name} )); then
       new_file="${output_directory}/${file_name}"
-      mv "${output_directory}/unamed" ${new_file}
+      mv -T "${output_directory}/unamed" ${new_file}
       md5=$(md5sum ${new_file}  | cut -d " " -f1)
       verify=1
     elif (( ${size} )); then
