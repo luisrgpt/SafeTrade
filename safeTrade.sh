@@ -120,7 +120,8 @@ function unhide {
    sk=$(grep -iaob -m 1 "53616c746564" $file | awk -F ":" '{print $1}')
    dd if=$file bs=1c skip=$sk count=$len status=noxfer | xxd -r -p | openssl aes-256-cbc -d -out text.txt -k $mypassword
    cat text.txt
-   key = echo text.txt
+   key = ""
+   echo text.txt > key
    #srm text.txt
 }
 
