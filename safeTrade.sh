@@ -70,6 +70,61 @@ function moveFile {
   file_list+=("${selected_file}")
 }
 
+function hide {
+	
+   # ainda nao deecidi como gerar esta password
+   mypassword = 123456789
+	
+   #key to hide
+   ms = $key_name
+   echo $ms>/tmp/ptext
+   #file where to hide it (fazer isto melhor)
+   fl = ./dog.jpg
+   #name of the new file (steg file)
+   new_file = myfluffydog.jpg
+   # here it crypts the plaintext in cyphered text by aes25 and save it into steg.bin
+   openssl aes-256-cbc -in /tmp/ptext -out /tmp/steg.bin -k mypassword
+   # password length
+   lenpw=$(expr length "$mypassword")
+   lenpw_mod=$(echo 10 + 0 | bc)
+   # temp1.bin is the head of the new file
+   dd if=$fl of=/tmp/temp1.bin bs=1c count=$lenpw_mod
+   # temp2.bin is a 10 bytes file filled of zeroes to store the secret message length 
+   dd if=$fl of=/tmp/temp2.bin bs=1c skip=$lenpw_mod count=10
+   # temp2.bin is the end of the new file
+   dd if=$fl of=/tmp/temp3.bin bs=1c skip=$(echo $lenpw_mod + 10 | bc)
+   dd if=/dev/zero of=/tmp/1temp2.bin count=10 bs=1c
+   # hex conversion of steg.bin 
+   cat /tmp/steg.bin | xxd -p > /tmp/steghex.bin
+   # len is the length of the steghex.bin file
+   len=$(wc -c /tmp/steghex.bin|awk '{print $1 }')
+   # hex conversion of len
+   echo $len | xxd -p > /tmp/l.bin
+   # it builts the new file
+   cat /tmp/temp1.bin /tmp/l.bin /tmp/temp2.bin /tmp/steghex.bin /tmp/temp3.bin > $nfl
+   srm /tmp/temp1.bin /tmp/temp2.bin /tmp/temp3.bin /tmp/steg.bin /tmp/steghex.bin /tmp/ptext /tmp/l.bin
+   
+}
+
+function unhide {
+   #file containing the key
+   file = ./myfluffydog.jpg
+
+   # ainda nao sei como gerar esta password
+   mypassword = 123456789
+
+   lenpw=$(expr length "$mypassword")
+   lenpw_mod=$(echo 0 + 10 | bc)
+   len=$(dd if=$file skip=$lenpw_mod bs=1c count=10 | xxd -r -p)
+   # it finds the openssl aes256 signanture into the target file and it takes the offset 
+   sk=$(grep -iaob -m 1 "53616c746564" $file | awk -F ":" '{print $1}')
+   dd if=$file bs=1c skip=$sk count=$len status=noxfer | xxd -r -p | openssl aes-256-cbc -d -out text.txt -k $mypassword
+   cat text.txt
+   key = echo text.txt
+   #srm text.txt
+}
+
+
 function safeTrade {
   output_directory="${2}"
   current_directory=${output_directory}
@@ -327,13 +382,9 @@ if ! (( ${reverse} )) && ! [[ ${size} ]]; then
 fi
 
 if (( ${reverse} )); then
-  ###################
-  # Find Key
-  ###################
+  unhide
   unSafeTrade
 else
   safeTrade "${input_directory}" "${output_directory}" "${passphrase}"
-  ###################
-  # Hide Key
-  ###################
+  hide
 fi
